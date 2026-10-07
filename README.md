@@ -32,11 +32,12 @@ universal OpenType shaping.
   the total height of the line boxes, ascender, descender, line height, and
   line count.
 
-The native suite has **17 checks**: composed and combining pairs, source spans,
+The native suite has **19 checks**: composed and combining pairs, source spans,
 identical layout for precomposed and combining text, rejected input (a leading
 mark, an unlisted pair, two marks in one cluster, emoji, Arabic, tab), empty
 text, line feeds, exact fit, word and cluster wrapping, single-glyph overflow,
-and invalid sizes. With Liberation Sans at 20 px, "AA" measures exactly
+invalid sizes, and a layout that is bit-for-bit the same with and without the
+font's Latin-1 table (and fails the same way on unsupported text). With Liberation Sans at 20 px, "AA" measures exactly
 26.6796875 units: it fits in that width and wraps to two lines at width 26.
 
 ## Quick start
@@ -120,9 +121,15 @@ Unsupported text is an error with a message, never a silent substitution: a
 character without a glyph, a script outside the declared range, or an unlisted
 combining pair fails the whole call.
 
-Cost: the `cmap` lookup scans segments linearly, layout uses persistent lists,
-and word lookahead can be quadratic for one very long word. There is no shaping
-cache. The 4096-scalar limit bounds work; it is not a latency guarantee.
+Cost: characters come from the Latin-1 table every Runika font carries
+(`F.info`, eight steps; the `cmap` and `hmtx` otherwise), normalizing and
+shaping carry their state in parameters rather than a closure per character,
+and a word is measured once, where it starts. Laying out the integrated
+demo's seven texts (about 250 characters) takes ~60 µs (~1.8 ms before).
+Layout uses persistent lists, and the measurement of one very long word is
+linear in its length per word start. Syllo keeps no cache of its own: a
+caller that lays the same text out again (Chromi's demo text) keeps the
+results. The 4096-scalar limit bounds work; it is not a latency guarantee.
 
 ## Repository map
 
