@@ -100,15 +100,23 @@ def step_acc(s: Step) -> List<&2, Cluster>:
     case Step{p, a}:
       a
 
-def normalize_go(text: String, +index: U32, pending: Maybe<&2, Cluster>, acc: List<&2, Cluster>) -> Result<&2, &2, String, List<&2, Cluster>>:
-  match text:
-    case SNil{}:
+def accept.within(ok: Bool, +code: U32, +index: U32, pending: Maybe<&2, Cluster>, acc: List<&2, Cluster>) -> Result<&2, &2, String, Step>:
+  match ok:
+    case False{}:
+      Fail{"text exceeds 4096 scalar limit"}
+    case True{}:
+      accept(Bool.and(U32.is_ge(code, 768), U32.is_le(code, 879)), code, index, pending, acc)
+
+# Folds the scalars into clusters; `step` is the state after the previous
+# scalar (a failure ends the fold with it).
+def normalize_go(text: String, +index: U32, step: Result<&2, &2, String, Step>) -> Result<&2, &2, String, List<&2, Cluster>>:
+  match text step:
+    case _ Fail{e}:
+      Fail{e}
+    case SNil{} Done{Step{pending, acc}}:
       Done{List.reverse(&2, Cluster, flush(pending, acc))}
-    case SCon{Chr{+code}, rest}:
-      do Result<&2, &2, String, List<&2, Cluster>>:
-        ok : Unit <- B.require(U32.is_lt(index, 4096), "text exceeds 4096 scalar limit")
-        +s : Step <- accept(Bool.and(U32.is_ge(code, 768), U32.is_le(code, 879)), code, index, pending, acc)
-        normalize_go(rest, (index + 1 : U32), step_pending(s), step_acc(s))
+    case SCon{Chr{+code}, rest} Done{Step{pending, acc}}:
+      normalize_go(rest, (index + 1 : U32), accept.within(U32.is_lt(index, 4096), code, index, pending, acc))
 
 def normalize(text: String) -> Result<&2, &2, String, List<&2, Cluster>>:
-  normalize_go(text, 0, None{}, Nil{})
+  normalize_go(text, 0, Done{Step{None{}, Nil{}}})

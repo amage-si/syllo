@@ -41,6 +41,27 @@ def empty(l: S.Layout) -> Bool:
     case S.Layout{Nil{}, w, h, asc, desc, lh, 1}: C.near(w, 0.0)
     case _: False{}
 
+# Bit-for-bit equal layouts (exact floats, glyphs, spans and lines).
+def exact_placements(a: List<&2, S.Placement>, b: List<&2, S.Placement>) -> Bool:
+  match a b:
+    case Nil{} Nil{}: True{}
+    case Con{S.Placement{ag, sa, ea, ax, ay, aa, al}, at} Con{S.Placement{bg, sb, eb, bx, by, ba, bl}, bt}:
+      U32.is_eq(ag, bg) && U32.is_eq(sa, sb) && U32.is_eq(ea, eb) && F32.is_eq(ax, bx) && F32.is_eq(ay, by) &&
+        F32.is_eq(aa, ba) && U32.is_eq(al, bl) && exact_placements(at, bt)
+    case _ _: False{}
+
+def same_exact(a: Result<&2, &2, String, S.Layout>, b: Result<&2, &2, String, S.Layout>) -> Bool:
+  match a b:
+    case Done{S.Layout{ap, aw, ah, aasc, adesc, alh, alc}} Done{S.Layout{bp, bw, bh, basc, bdesc, blh, blc}}:
+      exact_placements(ap, bp) && F32.is_eq(aw, bw) && F32.is_eq(ah, bh) && F32.is_eq(aasc, basc) &&
+        F32.is_eq(adesc, bdesc) && F32.is_eq(alh, blh) && U32.is_eq(alc, blc)
+    case _ _: False{}
+
+def same_failure(a: Result<&2, &2, String, S.Layout>, b: Result<&2, &2, String, S.Layout>) -> Bool:
+  match a b:
+    case Fail{x} Fail{y}: String.eq(x, y)
+    case _ _: False{}
+
 def same_pairs(text: String, normalized: String) -> IO(Unit):
   do IO<Unit>:
     a : List<&2, U.Cluster> <- C.unwrap(List<&2, U.Cluster>, U.normalize(text))
@@ -75,6 +96,11 @@ def main() -> IO(Unit):
     C.expect(U32.is_eq(line_count(words), 2), "greedy word wrap at space")
     +narrow : S.Layout <- C.unwrap(S.Layout, S.layout(font, "A", 20.0, 1.0))
     C.expect(Bool.and(U32.is_eq(line_count(narrow), 1), F32.is_gt(width(narrow), 1.0)), "oversized single glyph kept intact with measured overflow")
+    C.expect(same_exact(S.layout(font, "Texto real em Bend: ação, coração, café. Ativado 12 vezes.", 16.0, 300.0),
+      S.layout(F.latin.set(font, F.Unknown{}), "Texto real em Bend: ação, coração, café. Ativado 12 vezes.", 16.0, 300.0)),
+      "the font's Latin-1 table lays out exactly as reading cmap and hmtx")
+    C.expect(same_failure(S.layout(font, "Ação ☃", 16.0, 300.0), S.layout(F.latin.set(font, F.Unknown{}), "Ação ☃", 16.0, 300.0)),
+      "unsupported text fails the same with and without the table")
     C.expect(C.is_fail(S.Layout, S.layout(font, "a", 0.0, 100.0)), "zero font size rejected")
     C.expect(C.is_fail(S.Layout, S.layout(font, "a", 20.0, F32.neg(1.0))), "negative width rejected")
     IO.print("Syllo tests complete")
