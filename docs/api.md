@@ -90,3 +90,45 @@ Unicode NFC.
 `Dithra/main.bend::render(font, layout, size, device_scale)` rasterizes a layout
 into positioned coverage masks. Dithra multiplies sizes and positions by
 `device_scale`; Syllo's own output stays logical.
+
+## Caret and selection (single line)
+
+```bend
+import ./Syllo/caret.bend as SC
+
+type Stop is Data:  Stop{index: U32, x: F32}
+type Band is Data:  Band{x: F32, top: F32, width: F32, height: F32}
+type Unsupported is Data:  Unsupported{index: U32, scalar: U32}
+
+SC.stops(l: S.Layout) -> Result<&2, &2, String, List<&2, Stop>>
+SC.snap(stops: List<&2, Stop>, i: U32) -> U32
+SC.caret_x(stops: List<&2, Stop>, i: U32) -> F32
+SC.hit(stops: List<&2, Stop>, x: F32) -> U32
+SC.selection(stops: List<&2, Stop>, from: U32, to: U32, line_height: F32) -> List<&2, Band>
+SC.unsupported(font: F.Font, text: String) -> Maybe<&2, Unsupported>
+```
+
+- `stops` gives one `Stop{source_start, x}` per placement, in order, then the
+  end stop `Stop{source_end, x + advance}` of the last placement; its x equals
+  the layout's `width`. Empty text gives `[Stop{0, 0.0}]`. A layout with more
+  than one line (a line feed or a wrap) fails: lay a field out with a width
+  that cannot wrap.
+- `snap(stops, i)` is the largest stop index `<= i`: the index between a base
+  and its combining mark snaps to the base, and an index past the end clamps
+  to the end stop. `caret_x` is that stop's x.
+- `hit(stops, x)` is the index of the stop nearest to `x`, measured as
+  `|x - stop.x|`; an exact tie goes to the left stop. Negative `x` gives the
+  first stop and `x` past the end gives the end stop. `x` is relative to the
+  layout origin: subtract the text origin and add any scroll before calling.
+- `selection` snaps both ends, orders them, and returns no band when they
+  meet, otherwise one band from the left caret x to the right one, with
+  `top = 0` (the top of the line box) and `height = line_height`.
+- `unsupported(font, text)` applies `layout`'s rules (accepted scalars, listed
+  combining pairs, the font's glyphs, the 4096-scalar limit) and returns the
+  first problem in text order, or `None` exactly when `layout` would accept the
+  text at a valid size and width. A rejected mark (leading, unlisted pair or
+  second mark) is reported at its own index. A cluster without a glyph is
+  reported at its start with the scalar looked up, which is the composed
+  Latin-1 scalar for a base and mark. The length limit reports `(4096, scalar)`.
+
+All queries walk the stop list once, without closures.

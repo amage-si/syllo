@@ -20,6 +20,10 @@ bend tests.bend -o build/tests
 ./build/tests --threads 2 --gpu off
 bend examples/layout.bend -o build/layout
 ./build/layout --threads 2 --gpu off
+bend caret_tests.bend -o build/caret_tests
+./build/caret_tests --threads 2 --gpu off
+bend examples/caret.bend -o build/caret
+./build/caret --threads 2 --gpu off
 ```
 
 When a change affects visible text, also build Dithra's text demo with Syllo in

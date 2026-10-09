@@ -31,6 +31,12 @@ universal OpenType shaping.
 - Logical measurements: the widest line's sum of advances (spaces included),
   the total height of the line boxes, ascender, descender, line height, and
   line count.
+- Caret and selection queries on one line ([caret.bend](caret.bend)): caret
+  stops (one per placement plus an end stop), snapping an index off the
+  inside of a combining cluster, the caret's x, the nearest stop to a pointer
+  x (an exact tie goes left), and the selection band. `unsupported` names the
+  first scalar `layout` would reject, with its index, so an editor can refuse
+  an edit and say which character.
 
 The native suite has **19 checks**: composed and combining pairs, source spans,
 identical layout for precomposed and combining text, rejected input (a leading
@@ -39,6 +45,13 @@ text, line feeds, exact fit, word and cluster wrapping, single-glyph overflow,
 invalid sizes, and a layout that is bit-for-bit the same with and without the
 font's Latin-1 table (and fails the same way on unsupported text). With Liberation Sans at 20 px, "AA" measures exactly
 26.6796875 units: it fits in that width and wraps to two lines at width 26.
+
+The caret suite ([caret_tests.bend](caret_tests.bend)) has **37 checks**. With
+Liberation Sans at 20 px, "AA" has stops at x 0, 13.33984375, and 26.6796875;
+x 6.669921875, the exact midpoint, hits index 0 and 6.67 hits index 1. "ãé"
+with a combining accent has stops at indices 0, 1, and 3, and index 2 snaps to
+1. `unsupported("café ☕")` is index 5, scalar 9749. Multi-line layouts are
+refused.
 
 ## Quick start
 
@@ -110,8 +123,11 @@ Render the result with [Dithra](https://github.com/amage-si/dithra)
 Not implemented: bidirectional text, Arabic and Indic scripts, emoji and ZWJ
 sequences, ligatures, kerning, GSUB/GPOS, hyphenation, Unicode line breaking
 (UAX #14), conditional soft hyphens, canonical ordering, full NFC
-normalization, grapheme segmentation (UAX #29), font fallback, generic mark
-positioning, and complete cursor/selection support. Carriage return, CRLF, and
+normalization, grapheme segmentation (UAX #29), font fallback, and generic mark
+positioning. Cursor and selection queries work on one line only: a layout
+with a line feed or a wrap is refused, there is no vertical movement, word
+boundaries are left to the caller, and stops follow placements left to
+right (no bidirectional caret). Carriage return, CRLF, and
 tab are rejected in this version. Latin-1 symbols map directly to glyphs; that
 does not implement every editorial rule for those characters. Supported
 combining accents are composed before the character map lookup, not drawn by
@@ -131,21 +147,31 @@ linear in its length per word start. Syllo keeps no cache of its own: a
 caller that lays the same text out again (Chromi's demo text) keeps the
 results. The 4096-scalar limit bounds work; it is not a latency guarantee.
 
+Caret queries on a 256-scalar line at 20 px
+([examples/caret_bench.bend](examples/caret_bench.bend), Liberation Sans,
+`--threads 2`, three runs): `layout` ~51 µs, `stops` ~12 µs, `unsupported`
+~13.5 µs, and `hit`, `caret_x`, and `selection` ~1 µs each. One edit that
+re-lays out the text and its stops costs ~65 µs; a pointer move or caret
+query reuses the stops.
+
 ## Repository map
 
 | Path | Purpose |
 | --- | --- |
 | [main.bend](main.bend) | Glyph mapping, advances, line breaking, and `layout`. |
 | [unicode.bend](unicode.bend) | Accepted scalars, combining-pair composition, and clusters. |
+| [caret.bend](caret.bend) | Caret stops, snap, hit testing, selection bands, and `unsupported`. |
 | [tests.bend](tests.bend) | Native checks with Liberation Sans. |
+| [caret_tests.bend](caret_tests.bend) | Caret checks with Liberation Sans. |
 | [examples/layout.bend](examples/layout.bend) | Lays out a sentence and prints placements. |
+| [examples/caret.bend](examples/caret.bend) | Prints the caret stops, hits, and a selection band of one line. |
+| [examples/caret_bench.bend](examples/caret_bench.bend) | Times the caret queries on a 256-scalar line. |
 | [docs/api.md](docs/api.md) | Types, units, limits, and contracts. |
 
 ## Direction
 
 Next are kerning, more scripts with real shaping data, Unicode line breaking,
-and the cursor and selection queries that editing needs, each with tests on
-real text. These are goals, not supported features.
+and multi-line cursor and selection queries, each with tests on real text. These are goals, not supported features.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development rules. The API is
 experimental and may change. Licensed under either of [Apache License 2.0](LICENSE-APACHE) or [MIT](LICENSE-MIT), at your option.
