@@ -41,32 +41,30 @@ def stops(l: S.Layout) -> Result<&2, &2, String, List<&2, Stop>>:
     case S.Layout{ps, w, h, asc, desc, lh, lines}:
       stops.single(U32.is_le(lines, 1), ps)
 
-# The last stop whose index is at most i (the list is in index order).
-def snap.go(stops: List<&2, Stop>, +i: U32, best: Stop) -> Stop:
+# The last stop whose index is at most i (the list is in index order). The
+# folds pick scalars rather than build a Stop per element.
+def snap.go(stops: List<&2, Stop>, +i: U32, +best: U32) -> U32:
+  match stops:
+    case Nil{}:
+      best
+    case Con{Stop{+index, x}, rest}:
+      snap.go(rest, i, Bool.pick(U32, U32.is_le(index, i), index, best))
+
+def caret_x.go(stops: List<&2, Stop>, +i: U32, +best: F32) -> F32:
   match stops:
     case Nil{}:
       best
     case Con{Stop{+index, +x}, rest}:
-      snap.go(rest, i, Bool.pick(Stop, U32.is_le(index, i), Stop{index, x}, best))
-
-def stop_index(s: Stop) -> U32:
-  match s:
-    case Stop{index, x}:
-      index
-
-def stop_x(s: Stop) -> F32:
-  match s:
-    case Stop{index, x}:
-      x
+      caret_x.go(rest, i, Bool.pick(F32, U32.is_le(index, i), x, best))
 
 # The caret index for scalar index i: i itself when it is a stop, else the
 # stop before it (inside a combining cluster); past the end, the end stop.
 def snap(stops: List<&2, Stop>, +i: U32) -> U32:
-  stop_index(snap.go(stops, i, Stop{0, 0.0}))
+  snap.go(stops, i, 0)
 
 # The pen x of the caret at index i, after snapping.
 def caret_x(stops: List<&2, Stop>, +i: U32) -> F32:
-  stop_x(snap.go(stops, i, Stop{0, 0.0}))
+  caret_x.go(stops, i, 0.0)
 
 def hit.go(stops: List<&2, Stop>, +x: F32, +best: U32, +best_d: F32) -> U32:
   match stops:
@@ -86,17 +84,6 @@ def hit(stops: List<&2, Stop>, +x: F32) -> U32:
     case Con{Stop{index, sx}, rest}:
       hit.go(rest, x, index, F32.abs((x - sx : F32)))
 
-type Ends is Data:
-  Ends{low: Stop, high: Stop}
-
-def ends.go(stops: List<&2, Stop>, +lo: U32, +hi: U32, a: Stop, b: Stop) -> Ends:
-  match stops:
-    case Nil{}:
-      Ends{a, b}
-    case Con{Stop{+index, +x}, rest}:
-      ends.go(rest, lo, hi, Bool.pick(Stop, U32.is_le(index, lo), Stop{index, x}, a),
-        Bool.pick(Stop, U32.is_le(index, hi), Stop{index, x}, b))
-
 def band.of(empty: Bool, +ax: F32, bx: F32, height: F32) -> List<&2, Band>:
   match empty:
     case True{}:
@@ -104,16 +91,23 @@ def band.of(empty: Bool, +ax: F32, bx: F32, height: F32) -> List<&2, Band>:
     case False{}:
       [Band{ax, 0.0, (bx - ax : F32), height}]
 
-def band(e: Ends, height: F32) -> List<&2, Band>:
-  match e:
-    case Ends{Stop{ai, ax}, Stop{bi, bx}}:
+# The snapped ends lo and hi: indices ai, bi and their x ax, bx.
+def selection.go(stops: List<&2, Stop>, +lo: U32, +hi: U32, +ai: U32, +ax: F32, +bi: U32, +bx: F32,
+  height: F32) -> List<&2, Band>:
+  match stops:
+    case Nil{}:
       band.of(U32.is_eq(ai, bi), ax, bx, height)
+    case Con{Stop{+index, +x}, rest}:
+      +a = U32.is_le(index, lo)
+      +b = U32.is_le(index, hi)
+      selection.go(rest, lo, hi, Bool.pick(U32, a, index, ai), Bool.pick(F32, a, x, ax),
+        Bool.pick(U32, b, index, bi), Bool.pick(F32, b, x, bx), height)
 
 # The bands covering the text between from and to (either order, snapped).
 # One band per line: on a single line, at most one band, from the top of the
 # line box (y 0) down line_height. An empty selection gives no band.
 def selection(stops: List<&2, Stop>, +from: U32, +to: U32, line_height: F32) -> List<&2, Band>:
-  band(ends.go(stops, U32.min(from, to), U32.max(from, to), Stop{0, 0.0}, Stop{0, 0.0}), line_height)
+  selection.go(stops, U32.min(from, to), U32.max(from, to), 0, 0.0, 0, 0.0, line_height)
 
 # A scalar S.layout rejects: its index in the text and its value.
 type Unsupported is Data:
