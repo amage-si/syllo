@@ -70,20 +70,47 @@ For a preferred size in [Tessra](https://github.com/amage-si/tessra), use
 3. A word wider than a whole line breaks between clusters.
 4. Spaces are kept in the placements and count toward `width`; a space that
    does not fit also wraps. No-break space (U+00A0) is not a break opportunity.
+5. U+0020 is the only break opportunity. The General Punctuation spaces
+   (U+2000–200A, U+202F, U+205F), dashes (U+2010–2015), slashes and every
+   other accepted scalar are laid out as part of the word around them: "AA—AA"
+   moves to the next line as one word and breaks between clusters only when
+   it is wider than a line. There is no UAX #14 and no break after a dash.
 
 ## Accepted text
 
 | Input | Behavior |
 | --- | --- |
-| U+0020–007E, U+00A0–00FF | One cluster per scalar. |
+| U+0020–007E, U+00A0–00FF | One cluster per scalar (Latin-1 glyphs come from Runika's table). |
+| U+0100–02FF | Latin Extended-A and -B, IPA, spacing modifier letters: one cluster per scalar. |
+| U+0370–0482, U+048A–052F | Greek and Coptic, Cyrillic and Cyrillic Supplement: one cluster per scalar. |
+| U+1E00–1FFF | Latin Extended Additional, Greek Extended: one cluster per scalar. |
+| U+2000–200A, U+2010–2027, U+202F–205F | Spaces, dashes, quotes, bullets, ellipsis, per mille, primes, guillemets: one cluster per scalar, no break opportunity. |
+| U+2070–20CF | Superscripts and subscripts, currency symbols (€ ₽ ₹ ...): one cluster per scalar. |
+| U+2100–22FF | Letterlike symbols, number forms, arrows, mathematical operators: one cluster per scalar. |
 | U+000A | Line break; no glyph. |
 | Base + U+0300/0301/0302/0303/0308/0327 | Composed to the precomposed Latin-1 scalar when the pair is listed in `unicode.bend::compose`. |
 | Any other combining mark (U+0300–036F), a leading mark, or two marks on one base | Error. |
-| Any other scalar, including U+000D and U+0009 | Error. |
+| U+0483–0489, U+1AB0–1AFF, U+1DC0–1DFF, U+20D0–20FF, U+FE20–FE2F (other combining marks) | Error. |
+| U+200B–200F, U+202A–202E, U+2060–206F (zero-width and bidirectional controls), U+2028, U+2029 | Error. |
+| Hebrew, Arabic, Indic and every other script not listed, emoji, ZWJ sequences, scalars above U+FFFF | Error. |
+| Any other scalar, including controls, U+000D and U+0009 | Error. |
+
+An accepted scalar still needs a glyph: one the font lacks (Liberation Sans
+2.1.5 has no ₹ or ₽) fails the whole call with `font lacks a required Unicode
+glyph`, never a substitute. Unassigned code points inside the accepted ranges
+have no glyph in a conforming font and fail the same way. Every scalar is
+laid out left to right with its own advance; no kerning, no ligatures, no
+contextual forms (Greek final sigma is whatever scalar the text holds).
+
+Cost per character: Latin-1 comes from the font's table in eight steps
+(~0.03 µs); anything else is a binary search of the `cmap` and an `hmtx` read
+(~0.7 µs with Liberation Sans). Checking a scalar against the ranges takes a
+few comparisons, Latin-1 first.
 
 `unicode.bend::normalize(text)` exposes the clustering step as
 `List<&2, Cluster{code, start, end}>`. It is an explicit Latin-1 composition, not
-Unicode NFC.
+Unicode NFC. `unicode.bend::accepted(scalar)` is the range test above, shared
+by `layout` and `caret.bend::unsupported`.
 
 ## Rendering
 

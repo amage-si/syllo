@@ -44,7 +44,10 @@ Correct Bend is not fast Bend by default. Measured rules (Bend 2.0.35):
   `IO.now()`.
 
 Here: line breaking depends on the running x position, so layout stays
-sequential. Keep the folds closure-free, as `shape` and `normalize_go` are.
+sequential. Keep the folds closure-free, as `shape`, `normalize_go` and
+`accept` are. Keep Latin-1 on its fast path: `U.accepted` decides it first
+and Runika's table answers its glyphs in eight steps; any other character
+costs a `cmap` search (~0.7 µs), so look each one up once.
 
 ## Linux first
 

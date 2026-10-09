@@ -115,7 +115,19 @@ def main() -> IO(Unit):
     C.expect(is_none(SC.unsupported(font, "Olá, ação! Coração, café.")), "Portuguese text is supported")
     C.expect(is_none(SC.unsupported(font, "")), "empty text is supported")
     C.expect(is_none(SC.unsupported(font, "A\nA")), "a line feed is supported, as in layout")
-    C.expect(is_unsupported(SC.unsupported(font, "R$ 5 €"), 5, 8364), "the euro sign is (5, 8364)")
+    C.expect(is_none(SC.unsupported(font, "R$ 5 €")), "the euro sign is supported (Liberation Sans has it)")
+    C.expect(is_none(SC.unsupported(font, "€ — … “ ” Ł ő Ж Ω")), "€ — … “ ” Ł ő Ж Ω are supported")
+    C.expect(is_unsupported(SC.unsupported(font, "Preço ₹ 5"), 6, 8377), "₹, which the font lacks, is (6, 8377)")
+    C.expect(is_unsupported(SC.unsupported(font, "Olá שלום"), 4, 1513), "Hebrew is refused at its first letter (4, 1513)")
+    C.expect(is_unsupported(SC.unsupported(font, "مرحبا"), 0, 1605), "Arabic is refused at its first letter (0, 1605)")
+    C.expect(is_unsupported(SC.unsupported(font, "ok 🙂"), 3, 128578), "an emoji outside the BMP is (3, 128578)")
+    C.expect(is_unsupported(SC.unsupported(font, SCon{'a', SCon{Chr{8205}, SCon{'b', SNil{}}}}), 1, 8205), "a zero-width joiner is (1, 8205)")
+    C.expect(is_unsupported(SC.unsupported(font, SCon{Chr{1046}, SCon{Chr{1155}, SNil{}}}), 1, 1155),
+      "a Cyrillic combining titlo (U+0483) is refused at its index")
+    +euro : S.Layout <- C.unwrap(S.Layout, S.layout(font, "5 €—", 20.0, 1000.0))
+    +es : List<&2, SC.Stop> <- C.unwrap(List<&2, SC.Stop>, SC.stops(euro))
+    C.expect(same_stops(es, [SC.Stop{0, 0.0}, SC.Stop{1, 11.123046875}, SC.Stop{2, 16.6796875}, SC.Stop{3, 27.802734375},
+      SC.Stop{4, 47.802734375}]), "5 €— has one stop per scalar: € advances 11.123046875 and — 20")
     C.expect(is_unsupported(SC.unsupported(font, "́a"), 0, 769), "a leading mark is reported at 0")
     C.expect(is_unsupported(SC.unsupported(font, "ax́"), 2, 769), "an unlisted pair reports its mark")
     C.expect(is_unsupported(SC.unsupported(font, "ã́"), 1, 769), "a mark after a precomposed letter is reported")
@@ -126,6 +138,11 @@ def main() -> IO(Unit):
     C.expect(agrees(SC.unsupported(font, "café ☕"), S.layout(font, "café ☕", 20.0, 1000.0)) &&
       agrees(SC.unsupported(font, "ax́"), S.layout(font, "ax́", 20.0, 1000.0)) &&
       agrees(SC.unsupported(font, "Olá, ação!"), S.layout(font, "Olá, ação!", 20.0, 1000.0)) &&
-      agrees(SC.unsupported(font, "a\tb"), S.layout(font, "a\tb", 20.0, 1000.0)),
+      agrees(SC.unsupported(font, "a\tb"), S.layout(font, "a\tb", 20.0, 1000.0)) &&
+      agrees(SC.unsupported(font, "R$ 5 € — “ok”"), S.layout(font, "R$ 5 € — “ok”", 20.0, 1000.0)) &&
+      agrees(SC.unsupported(font, "Привет, Ωμέγα"), S.layout(font, "Привет, Ωμέγα", 20.0, 1000.0)) &&
+      agrees(SC.unsupported(font, "Preço ₹ 5"), S.layout(font, "Preço ₹ 5", 20.0, 1000.0)) &&
+      agrees(SC.unsupported(font, "Olá שלום"), S.layout(font, "Olá שלום", 20.0, 1000.0)) &&
+      agrees(SC.unsupported(font, "ok 🙂"), S.layout(font, "ok 🙂", 20.0, 1000.0)),
       "unsupported is None exactly when layout succeeds")
     IO.print("Syllo caret tests complete")

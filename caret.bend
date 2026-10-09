@@ -135,9 +135,6 @@ def missing(skip: Bool, +font: F.Font, +code: U32) -> Bool:
     case False{}:
       absent(F.info(font, code))
 
-def accepted(+c: U32) -> Bool:
-  U32.is_eq(c, 10) || (U32.is_ge(c, 32) && U32.is_le(c, 126)) || (U32.is_ge(c, 160) && U32.is_le(c, 255))
-
 def scan.composed(unlisted: Bool, +cp: U32, +index: U32, +mark: U32, +start: U32) -> Scan:
   match unlisted:
     case True{}:
@@ -153,7 +150,7 @@ def scan.base(lacks: Bool, +c: U32, +index: U32, +code: U32, +start: U32) -> Sca
     case True{}:
       Rejected{start, code}
     case False{}:
-      Bool.pick(Scan, accepted(c), Scanning{c, index}, Rejected{index, c})
+      Bool.pick(Scan, U.accepted(c), Scanning{c, index}, Rejected{index, c})
 
 def scan.kind(mark: Bool, +font: F.Font, +c: U32, +index: U32, +code: U32, +start: U32) -> Scan:
   match mark:
@@ -167,7 +164,7 @@ def scan.step(within: Bool, +font: F.Font, +c: U32, +index: U32, +code: U32, +st
     case False{}:
       Rejected{index, c}
     case True{}:
-      scan.kind(U32.is_ge(c, 768) && U32.is_le(c, 879), font, c, index, code, start)
+      scan.kind(U.is_mark(c), font, c, index, code, start)
 
 def scan.close(lacks: Bool, +start: U32, +code: U32) -> Maybe<&2, Unsupported>:
   match lacks:
@@ -187,8 +184,8 @@ def scan(text: String, +font: F.Font, +index: U32, state: Scan) -> Maybe<&2, Uns
 
 # The first scalar that makes S.layout reject `text` with this font, as
 # Unsupported{index, scalar}, or None when the text is supported. It applies
-# layout's rules: accepted scalars, listed combining pairs, the font's
-# glyphs, and the 4096-scalar limit. For a mark the pair is missing, the
+# layout's rules: accepted scalars (`U.accepted`, shared with layout),
+# listed combining pairs, the font's glyphs, and the 4096-scalar limit. For a mark the pair is missing, the
 # mark is reported; for a cluster the font has no glyph for, its start and
 # its (composed) scalar. Problems are found in text order. Size and width
 # are not checked.
